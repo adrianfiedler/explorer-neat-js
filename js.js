@@ -36,7 +36,9 @@ obstacleImg.src = 'assets/obstacle.png';
 const exitImg = new Image();
 exitImg.src = 'assets/exit.png';
 
-function initLevel () {
+let leeMatrix = [];
+
+function initLevel() {
   for (let x = 0; x < boxesX; x++) {
     level.push([]);
     for (let y = 0; y < boxesY; y++) {
@@ -60,11 +62,22 @@ function initLevel () {
       level[x][y] = box;
     }
   }
-  console.table(level);
+  // console.table(level);
+  calculateLee();
+}
+
+function calculateLee() {
+  const tmpMatrix = convertToLeeMatrix(level);
+  console.table(tmpMatrix);
+  leeMatrix = lee.pathfinder(tmpMatrix, posX, posY, boxesX - 1, boxesY - 1);
+  console.log("FINAL MATRIX : \n", leeMatrix);
+  // const bestPath = await lee.backtrace(leeMatrix, 0, 0, boxesX - 1, boxesY - 1);
+  // console.log("BEST PATH : \n", bestPath);
+  document.getElementById('dist').value = leeMatrix[1];
 }
 initLevel();
 
-function drawBoard () {
+function drawBoard() {
   ctx.beginPath();
   for (let x = 0; x < boxesX; x++) {
     for (let y = 0; y < boxesY; y++) {
@@ -82,11 +95,11 @@ function drawBoard () {
   ctx.closePath();
 }
 
-function drawPlayer () {
+function drawPlayer() {
   ctx.drawImage(playerImg, posX * boxSize, posY * boxSize, boxSize, boxSize);
 }
 
-function draw () {
+function draw() {
   calculateScore();
   clearBoard();
   drawBoard();
@@ -94,7 +107,7 @@ function draw () {
   updateUI();
 }
 
-function calculateScore () {
+function calculateScore() {
   if (!ended) {
     timeMalus = new Date().getTime() - startTime.getTime();
     score = INIT_SCORE - timeMalus + diamondBonus;
@@ -104,11 +117,11 @@ function calculateScore () {
   }
 }
 
-function clearBoard () {
+function clearBoard() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
-function keyDownHandler (e) {
+function keyDownHandler(e) {
   if (!ended) {
     let levelBlock = level[posX][posY];
     if (e.key === 'Right' || e.key === 'ArrowRight') {
@@ -150,22 +163,23 @@ function keyDownHandler (e) {
     }
 
     console.log(`posX: ${posX}, posY: ${posY}`);
+    calculateLee();
   }
 }
 
-function keyUpHandler (e) {
+function keyUpHandler(e) {
   if (e.key === 'Right' || e.key === 'ArrowRight') {
   } else if (e.key === 'Left' || e.key === 'ArrowLeft') {
   }
 }
 
-function updateUI () {
+function updateUI() {
   document.getElementById('score').value = score;
 }
 setInterval(draw, 20);
 
 // eslint-disable-next-line no-unused-vars
-function resetGame () {
+function resetGame() {
   console.log('Reset game');
   posX = 0;
   posY = 0;
