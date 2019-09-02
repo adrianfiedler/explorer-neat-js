@@ -1,4 +1,5 @@
 /* eslint-disable semi */
+const Neat = neataptic.Neat;
 const boxesX = 20;
 const boxesY = boxesX;
 var canvas = document.getElementById('myCanvas');
@@ -12,11 +13,23 @@ let timeMalus = 0;
 let diamondBonus = 0;
 const obstacleProb = 10;
 const diamondProb = 1;
-const INIT_SCORE = 20000;
+const INIT_SCORE = 500;
 const DIAMOND_VALUE = 5000;
 let score = INIT_SCORE;
 const level = [];
 let ended = false;
+let distance = 0;
+const POPULATION = 60;
+const MUTATION_RATE = 0.5
+const MUTATION_AMOUNT = 3
+const neat = new Neat(1, 4, null, {
+  popsize: POPULATION,
+  elitism: Math.round(0.2 * POPULATION),
+  mutationRate: MUTATION_RATE,
+  mutationAmount: MUTATION_AMOUNT
+}
+);
+let roundsPlayed = 0;
 
 const playerImg = new Image();
 playerImg.onload = function () {
@@ -68,12 +81,13 @@ function initLevel() {
 
 function calculateLee() {
   const tmpMatrix = convertToLeeMatrix(level);
-  console.table(tmpMatrix);
+  // console.table(tmpMatrix);
   leeMatrix = lee.pathfinder(tmpMatrix, posX, posY, boxesX - 1, boxesY - 1);
-  console.log("FINAL MATRIX : \n", leeMatrix);
+  distance = leeMatrix[1];
+  // console.log("FINAL MATRIX : \n", leeMatrix);
   // const bestPath = await lee.backtrace(leeMatrix, 0, 0, boxesX - 1, boxesY - 1);
   // console.log("BEST PATH : \n", bestPath);
-  document.getElementById('dist').value = leeMatrix[1];
+  document.getElementById('dist').value = distance;
 }
 initLevel();
 
@@ -95,6 +109,22 @@ function drawBoard() {
   ctx.closePath();
 }
 
+function movePlayer() {
+  const input = [distance / 21];
+  let brain = neat.population[roundsPlayed];
+  const output = brain.activate(input).map(o => Math.round(o));
+
+  if (output[0]) {
+    moveUp();
+  } else if (output[1]) {
+    moveRight();
+  } else if (output[2]) {
+    moveDown();
+  } else {
+    moveLeft();
+  }
+}
+
 function drawPlayer() {
   ctx.drawImage(playerImg, posX * boxSize, posY * boxSize, boxSize, boxSize);
 }
@@ -103,6 +133,7 @@ function draw() {
   calculateScore();
   clearBoard();
   drawBoard();
+  movePlayer();
   drawPlayer();
   updateUI();
 }
@@ -112,7 +143,7 @@ function calculateScore() {
     timeMalus = new Date().getTime() - startTime.getTime();
     score = INIT_SCORE - timeMalus + diamondBonus;
     if (score < 0) {
-      score = 0;
+      resetGame();
     }
   }
 }
@@ -125,33 +156,13 @@ function keyDownHandler(e) {
   if (!ended) {
     let levelBlock = level[posX][posY];
     if (e.key === 'Right' || e.key === 'ArrowRight') {
-      if (posX + 1 < boxesX) {
-        levelBlock = level[posX + 1][posY];
-        if (levelBlock !== 'O') {
-          posX++;
-        }
-      }
+      moveRight();
     } else if (e.key === 'Left' || e.key === 'ArrowLeft') {
-      if (posX > 0) {
-        levelBlock = level[posX - 1][posY];
-        if (levelBlock !== 'O') {
-          posX--;
-        }
-      }
+      moveLeft();
     } else if (e.key === 'Up' || e.key === 'ArrowUp') {
-      if (posY > 0) {
-        levelBlock = level[posX][posY - 1];
-        if (levelBlock !== 'O') {
-          posY--;
-        }
-      }
+      moveUp();
     } else if (e.key === 'Down' || e.key === 'ArrowDown') {
-      if (posY + 1 < boxesY) {
-        levelBlock = level[posX][posY + 1];
-        if (levelBlock !== 'O') {
-          posY++;
-        }
-      }
+      moveDown();
     }
     if (levelBlock === 'D') {
       console.log('Diamond found!');
@@ -164,6 +175,42 @@ function keyDownHandler(e) {
 
     console.log(`posX: ${posX}, posY: ${posY}`);
     calculateLee();
+  }
+}
+
+function moveLeft() {
+  if (posX > 0) {
+    levelBlock = level[posX - 1][posY];
+    if (levelBlock !== 'O') {
+      posX--;
+    }
+  }
+}
+
+function moveRight() {
+  if (posX + 1 < boxesX) {
+    levelBlock = level[posX + 1][posY];
+    if (levelBlock !== 'O') {
+      posX++;
+    }
+  }
+}
+
+function moveDown() {
+  if (posY + 1 < boxesY) {
+    levelBlock = level[posX][posY + 1];
+    if (levelBlock !== 'O') {
+      posY++;
+    }
+  }
+}
+
+function moveUp() {
+  if (posY > 0) {
+    levelBlock = level[posX][posY - 1];
+    if (levelBlock !== 'O') {
+      posY--;
+    }
   }
 }
 
@@ -180,6 +227,12 @@ setInterval(draw, 20);
 
 // eslint-disable-next-line no-unused-vars
 function resetGame() {
+  roundsPlayed++;
+  if (roundsPlayed > neat.population.length) {
+    roundsPlayed = 0;
+  }
+  evolveGeneration();
+
   console.log('Reset game');
   posX = 0;
   posY = 0;
@@ -190,5 +243,27 @@ function resetGame() {
   ended = false;
   initLevel();
 }
+
+function evolveGeneration() {
+  if (roundsPlayed % 50 == 0) {
+    console.log("Evolving...");
+    neat.sort();
+    const newGeneration = [];
+    for (let i = 0; i < neat.elitism; i++) {
+      newGeneration.push(neat.population[i]);
+    }
+    for (let i = 0; i < neat.popsize - neat.elitism; i++) {
+      newGeneration.push(neat.getOffspring())
+    }
+    neat.population = newGeneration;
+    neat.mutate();
+    neat.generation++;
+    console.log(`Best fitness: ${neat.getFittest().score}`);
+    console.log(`Average fitness: ${neat.getAverage()}`);
+    console.log(`Worst fitness: ${neat.population[neat.popsize - 1].score}`);
+    console.log(`### Next generation: ${neat.generation} ###`);
+  }
+}
+
 document.addEventListener('keydown', keyDownHandler, false);
 document.addEventListener('keyup', keyUpHandler, false);
