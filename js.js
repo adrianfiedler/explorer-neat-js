@@ -13,8 +13,8 @@ let timeMalus = 0;
 let diamondBonus = 0;
 const obstacleProb = 10;
 const diamondProb = 1;
-const INIT_SCORE = 500;
-const DIAMOND_VALUE = 5000;
+const INIT_SCORE = 0;
+const DIAMOND_VALUE = 500;
 let score = INIT_SCORE;
 const level = [];
 let ended = false;
@@ -22,7 +22,7 @@ let distance = 0;
 const POPULATION = 60;
 const MUTATION_RATE = 0.5
 const MUTATION_AMOUNT = 3
-const neat = new Neat(1, 4, null, {
+const neat = new Neat(5, 4, null, {
   popsize: POPULATION,
   elitism: Math.round(0.2 * POPULATION),
   mutationRate: MUTATION_RATE,
@@ -30,6 +30,11 @@ const neat = new Neat(1, 4, null, {
 }
 );
 let roundsPlayed = 0;
+const START_DIST = 1000;
+const NOT_MOVED_LIMIT = 10;
+const TIME_ABORT = 5000;
+let minDist = START_DIST;
+let notMovedCycles = 0;
 
 const playerImg = new Image();
 playerImg.onload = function () {
@@ -84,6 +89,14 @@ function calculateLee() {
   // console.table(tmpMatrix);
   leeMatrix = lee.pathfinder(tmpMatrix, posX, posY, boxesX - 1, boxesY - 1);
   distance = leeMatrix[1];
+  // distance = Math.sqrt(Math.pow((boxesX - 1) - posX, 2) + Math.pow((boxesY - 1) - posY, 2));
+  if (minDist === START_DIST) {
+    minDist = distance;
+  }
+  if (distance < minDist) {
+    score += 10;
+    minDist = distance;
+  }
   // console.log("FINAL MATRIX : \n", leeMatrix);
   // const bestPath = await lee.backtrace(leeMatrix, 0, 0, boxesX - 1, boxesY - 1);
   // console.log("BEST PATH : \n", bestPath);
@@ -110,19 +123,32 @@ function drawBoard() {
 }
 
 function movePlayer() {
-  const input = [distance / 21];
+  const lastX = posX;
+  const lastY = posY;
+  const canMoveLeft = posX > 0 && level[posX - 1][posY] !== 'O';
+  const canMoveRight = posX < boxesX - 1 && level[posX + 1][posY] !== 'O';
+  const canMoveUp = posY > 0 && level[posX][posY - 1] !== 'O';
+  const canMoveDown = posY < boxesY - 1 && level[posX][posY + 1] !== 'O';
+  const input = [canMoveLeft, canMoveRight, canMoveUp, canMoveDown, distance];
   let brain = neat.population[roundsPlayed];
-  const output = brain.activate(input).map(o => Math.round(o));
+  const output = brain.activate(input);
 
-  if (output[0]) {
+  if (output[0] > output[1] && output[0] > output[2] && output[0] > output[3]) {
     moveUp();
-  } else if (output[1]) {
+  } else if (output[1] > output[0] && output[1] > output[2] && output[1] > output[3]) {
     moveRight();
-  } else if (output[2]) {
+  } else if (output[2] > output[0] && output[2] > output[1] && output[2] > output[3]) {
     moveDown();
   } else {
     moveLeft();
   }
+  if (lastX === posX && lastY === posY) {
+    // not moved
+    notMovedCycles++;
+  } else {
+    notMovedCycles = 0;
+  }
+  calculateLee();
 }
 
 function drawPlayer() {
@@ -141,8 +167,10 @@ function draw() {
 function calculateScore() {
   if (!ended) {
     timeMalus = new Date().getTime() - startTime.getTime();
-    score = INIT_SCORE - timeMalus + diamondBonus;
-    if (score < 0) {
+    // score = INIT_SCORE - timeMalus + diamondBonus;
+    let brain = neat.population[roundsPlayed];
+    brain.score = score;
+    if (notMovedCycles > NOT_MOVED_LIMIT || timeMalus > TIME_ABORT) {
       resetGame();
     }
   }
@@ -223,17 +251,18 @@ function keyUpHandler(e) {
 function updateUI() {
   document.getElementById('score').value = score;
 }
-setInterval(draw, 20);
+setInterval(draw, 10);
 
 // eslint-disable-next-line no-unused-vars
 function resetGame() {
+  console.log('Reset game');
   roundsPlayed++;
-  if (roundsPlayed > neat.population.length) {
+
+  if (roundsPlayed === neat.population.length) {
+    evolveGeneration();
     roundsPlayed = 0;
   }
-  evolveGeneration();
 
-  console.log('Reset game');
   posX = 0;
   posY = 0;
   score = INIT_SCORE;
@@ -241,28 +270,30 @@ function resetGame() {
   timeMalus = 0;
   diamondBonus = 0;
   ended = false;
+  minDist = START_DIST;
   initLevel();
 }
 
 function evolveGeneration() {
-  if (roundsPlayed % 50 == 0) {
-    console.log("Evolving...");
-    neat.sort();
-    const newGeneration = [];
-    for (let i = 0; i < neat.elitism; i++) {
-      newGeneration.push(neat.population[i]);
-    }
-    for (let i = 0; i < neat.popsize - neat.elitism; i++) {
-      newGeneration.push(neat.getOffspring())
-    }
-    neat.population = newGeneration;
-    neat.mutate();
-    neat.generation++;
-    console.log(`Best fitness: ${neat.getFittest().score}`);
-    console.log(`Average fitness: ${neat.getAverage()}`);
-    console.log(`Worst fitness: ${neat.population[neat.popsize - 1].score}`);
-    console.log(`### Next generation: ${neat.generation} ###`);
+  console.log("Evolving...");
+  neat.sort();
+
+  console.log(`Best fitness: ${neat.getFittest().score}`);
+  console.log(`Average fitness: ${neat.getAverage()}`);
+  console.log(`Worst fitness: ${neat.population[neat.popsize - 1].score}`);
+  console.log(`### Next generation: ${neat.generation} ###`);
+
+  const newGeneration = [];
+  for (let i = 0; i < neat.elitism; i++) {
+    newGeneration.push(neat.population[i]);
   }
+  for (let i = 0; i < neat.popsize - neat.elitism; i++) {
+    newGeneration.push(neat.getOffspring())
+  }
+
+  neat.population = newGeneration;
+  neat.mutate();
+  neat.generation++;
 }
 
 document.addEventListener('keydown', keyDownHandler, false);
