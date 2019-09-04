@@ -1,16 +1,18 @@
+/* eslint-disable object-curly-spacing */
+import { Player } from './js/player';
+
+/* eslint-disable require-jsdoc */
 /* eslint-disable semi */
 const Neat = neataptic.Neat;
 const boxesX = 20;
 const boxesY = boxesX;
-var canvas = document.getElementById('myCanvas');
+const canvas = document.getElementById('myCanvas');
 const boxSize = canvas.width / boxesX;
 console.log(`boxSize: ${boxSize}`);
-var ctx = canvas.getContext('2d');
-var posX = 0;
-var posY = 0;
+const ctx = canvas.getContext('2d');
+
 let startTime = new Date();
 let timeMalus = 0;
-let diamondBonus = 0;
 const obstacleProb = 10;
 const diamondProb = 1;
 const INIT_SCORE = 0;
@@ -29,6 +31,7 @@ const neat = new Neat(5, 4, null, {
   mutationAmount: MUTATION_AMOUNT
 }
 );
+const players = [];
 let roundsPlayed = 0;
 const START_DIST = 1000;
 const NOT_MOVED_LIMIT = 10;
@@ -81,6 +84,10 @@ function initLevel() {
     }
   }
   // console.table(level);
+
+  for (let i = 0; i < POPULATION; i++) {
+    players.push(new Player(neat.population[i], level));
+  }
   calculateLee();
 }
 
@@ -122,35 +129,6 @@ function drawBoard() {
   ctx.closePath();
 }
 
-function movePlayer() {
-  const lastX = posX;
-  const lastY = posY;
-  const canMoveLeft = posX > 0 && level[posX - 1][posY] !== 'O';
-  const canMoveRight = posX < boxesX - 1 && level[posX + 1][posY] !== 'O';
-  const canMoveUp = posY > 0 && level[posX][posY - 1] !== 'O';
-  const canMoveDown = posY < boxesY - 1 && level[posX][posY + 1] !== 'O';
-  const input = [canMoveLeft, canMoveRight, canMoveUp, canMoveDown, distance];
-  let brain = neat.population[roundsPlayed];
-  const output = brain.activate(input);
-
-  if (output[0] > output[1] && output[0] > output[2] && output[0] > output[3]) {
-    moveUp();
-  } else if (output[1] > output[0] && output[1] > output[2] && output[1] > output[3]) {
-    moveRight();
-  } else if (output[2] > output[0] && output[2] > output[1] && output[2] > output[3]) {
-    moveDown();
-  } else {
-    moveLeft();
-  }
-  if (lastX === posX && lastY === posY) {
-    // not moved
-    notMovedCycles++;
-  } else {
-    notMovedCycles = 0;
-  }
-  calculateLee();
-}
-
 function drawPlayer() {
   ctx.drawImage(playerImg, posX * boxSize, posY * boxSize, boxSize, boxSize);
 }
@@ -162,6 +140,12 @@ function draw() {
   movePlayer();
   drawPlayer();
   updateUI();
+}
+
+function movePlayers() {
+  for (const player of players) {
+    player.move();
+  }
 }
 
 function calculateScore() {
@@ -206,41 +190,7 @@ function keyDownHandler(e) {
   }
 }
 
-function moveLeft() {
-  if (posX > 0) {
-    levelBlock = level[posX - 1][posY];
-    if (levelBlock !== 'O') {
-      posX--;
-    }
-  }
-}
 
-function moveRight() {
-  if (posX + 1 < boxesX) {
-    levelBlock = level[posX + 1][posY];
-    if (levelBlock !== 'O') {
-      posX++;
-    }
-  }
-}
-
-function moveDown() {
-  if (posY + 1 < boxesY) {
-    levelBlock = level[posX][posY + 1];
-    if (levelBlock !== 'O') {
-      posY++;
-    }
-  }
-}
-
-function moveUp() {
-  if (posY > 0) {
-    levelBlock = level[posX][posY - 1];
-    if (levelBlock !== 'O') {
-      posY--;
-    }
-  }
-}
 
 function keyUpHandler(e) {
   if (e.key === 'Right' || e.key === 'ArrowRight') {
