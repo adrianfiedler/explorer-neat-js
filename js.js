@@ -1,5 +1,5 @@
 /* eslint-disable object-curly-spacing */
-import { Player } from './js/player';
+import { Player } from './js/player.js';
 
 /* eslint-disable require-jsdoc */
 /* eslint-disable semi */
@@ -11,15 +11,11 @@ const boxSize = canvas.width / boxesX;
 console.log(`boxSize: ${boxSize}`);
 const ctx = canvas.getContext('2d');
 
-let startTime = new Date();
-let timeMalus = 0;
 const obstacleProb = 10;
 const diamondProb = 1;
 const INIT_SCORE = 0;
 const DIAMOND_VALUE = 500;
-let score = INIT_SCORE;
-const level = [];
-let ended = false;
+let level = [];
 let distance = 0;
 const POPULATION = 60;
 const MUTATION_RATE = 0.5
@@ -31,13 +27,11 @@ const neat = new Neat(5, 4, null, {
   mutationAmount: MUTATION_AMOUNT
 }
 );
-const players = [];
+let players = [];
 let roundsPlayed = 0;
 const START_DIST = 1000;
 const NOT_MOVED_LIMIT = 10;
-const TIME_ABORT = 5000;
-let minDist = START_DIST;
-let notMovedCycles = 0;
+const TIME_MAX_LIMIT = 1000;
 
 const playerImg = new Image();
 playerImg.onload = function () {
@@ -60,6 +54,7 @@ exitImg.src = 'assets/exit.png';
 let leeMatrix = [];
 
 function initLevel() {
+  level = [];
   for (let x = 0; x < boxesX; x++) {
     level.push([]);
     for (let y = 0; y < boxesY; y++) {
@@ -85,31 +80,31 @@ function initLevel() {
   }
   // console.table(level);
 
+  players = [];
   for (let i = 0; i < POPULATION; i++) {
-    players.push(new Player(neat.population[i], level));
+    players.push(new Player(neat.population[i], level, START_DIST,
+      NOT_MOVED_LIMIT, TIME_MAX_LIMIT));
   }
-  calculateLee();
+  leeMatrix = convertToLeeMatrix(level);
 }
 
 function calculateLee() {
-  const tmpMatrix = convertToLeeMatrix(level);
-  // console.table(tmpMatrix);
-  leeMatrix = lee.pathfinder(tmpMatrix, posX, posY, boxesX - 1, boxesY - 1);
-  distance = leeMatrix[1];
-  // distance = Math.sqrt(Math.pow((boxesX - 1) - posX, 2) + Math.pow((boxesY - 1) - posY, 2));
-  if (minDist === START_DIST) {
-    minDist = distance;
+  for (const player of players) {
+    const distMatrix = lee.pathfinder(cloneArray(leeMatrix), player.posX, player.posY, boxesX - 1, boxesY - 1);
+    distance = distMatrix[1];
+    player.distance = distance;
+
+    if (player.minDist === START_DIST) {
+      player.minDist = distance;
+    }
+    if (distance < player.minDist) {
+      player.brain.score += 10;
+      player.minDist = distance;
+    }
+    document.getElementById('dist').value = distance;
+    document.getElementById('score').value = player.brain.score;
   }
-  if (distance < minDist) {
-    score += 10;
-    minDist = distance;
-  }
-  // console.log("FINAL MATRIX : \n", leeMatrix);
-  // const bestPath = await lee.backtrace(leeMatrix, 0, 0, boxesX - 1, boxesY - 1);
-  // console.log("BEST PATH : \n", bestPath);
-  document.getElementById('dist').value = distance;
 }
-initLevel();
 
 function drawBoard() {
   ctx.beginPath();
@@ -130,32 +125,24 @@ function drawBoard() {
 }
 
 function drawPlayer() {
-  ctx.drawImage(playerImg, posX * boxSize, posY * boxSize, boxSize, boxSize);
+  for (const player of players) {
+    ctx.drawImage(playerImg, player.posX * boxSize, player.posY * boxSize, boxSize, boxSize);
+  }
 }
 
 function draw() {
-  calculateScore();
   clearBoard();
   drawBoard();
-  movePlayer();
+  calculateLee();
+  movePlayers();
   drawPlayer();
-  updateUI();
+  checkGeneration();
 }
 
 function movePlayers() {
   for (const player of players) {
-    player.move();
-  }
-}
-
-function calculateScore() {
-  if (!ended) {
-    timeMalus = new Date().getTime() - startTime.getTime();
-    // score = INIT_SCORE - timeMalus + diamondBonus;
-    let brain = neat.population[roundsPlayed];
-    brain.score = score;
-    if (notMovedCycles > NOT_MOVED_LIMIT || timeMalus > TIME_ABORT) {
-      resetGame();
+    if (!player.ended) {
+      player.move();
     }
   }
 }
@@ -164,68 +151,16 @@ function clearBoard() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
-function keyDownHandler(e) {
-  if (!ended) {
-    let levelBlock = level[posX][posY];
-    if (e.key === 'Right' || e.key === 'ArrowRight') {
-      moveRight();
-    } else if (e.key === 'Left' || e.key === 'ArrowLeft') {
-      moveLeft();
-    } else if (e.key === 'Up' || e.key === 'ArrowUp') {
-      moveUp();
-    } else if (e.key === 'Down' || e.key === 'ArrowDown') {
-      moveDown();
-    }
-    if (levelBlock === 'D') {
-      console.log('Diamond found!');
-      diamondBonus += DIAMOND_VALUE;
-      level[posX][posY] = '';
-    } else if (levelBlock === 'E') {
-      console.log('Game ended');
-      ended = true;
-    }
-
-    console.log(`posX: ${posX}, posY: ${posY}`);
-    calculateLee();
-  }
-}
-
-
-
-function keyUpHandler(e) {
-  if (e.key === 'Right' || e.key === 'ArrowRight') {
-  } else if (e.key === 'Left' || e.key === 'ArrowLeft') {
-  }
-}
-
-function updateUI() {
-  document.getElementById('score').value = score;
-}
-setInterval(draw, 10);
-
 // eslint-disable-next-line no-unused-vars
 function resetGame() {
   console.log('Reset game');
   roundsPlayed++;
-
-  if (roundsPlayed === neat.population.length) {
-    evolveGeneration();
-    roundsPlayed = 0;
-  }
-
-  posX = 0;
-  posY = 0;
-  score = INIT_SCORE;
-  startTime = new Date();
-  timeMalus = 0;
-  diamondBonus = 0;
-  ended = false;
-  minDist = START_DIST;
+  evolveGeneration();
   initLevel();
 }
 
 function evolveGeneration() {
-  console.log("Evolving...");
+  console.log('Evolving...');
   neat.sort();
 
   console.log(`Best fitness: ${neat.getFittest().score}`);
@@ -246,5 +181,18 @@ function evolveGeneration() {
   neat.generation++;
 }
 
-document.addEventListener('keydown', keyDownHandler, false);
-document.addEventListener('keyup', keyUpHandler, false);
+function checkGeneration() {
+  let ended = 0;
+  for (const player of players) {
+    if (player.ended) {
+      ended++;
+    }
+  }
+  if (ended === neat.population.length) {
+    resetGame();
+  }
+}
+
+initLevel();
+
+setInterval(draw, 10);
