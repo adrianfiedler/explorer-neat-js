@@ -168,6 +168,8 @@ function evolveGeneration() {
   console.log(`Worst fitness: ${neat.population[neat.popsize - 1].score}`);
   console.log(`### Next generation: ${neat.generation} ###`);
 
+  drawChart();
+
   const newGeneration = [];
   for (let i = 0; i < neat.elitism; i++) {
     newGeneration.push(neat.population[i]);
@@ -179,6 +181,20 @@ function evolveGeneration() {
   neat.population = newGeneration;
   neat.mutate();
   neat.generation++;
+}
+
+function drawChart() {
+  chartData.labels.push(neat.generation.toString())
+  chartData.datasets[0].values.push(neat.getFittest().score)
+  chartData.datasets[1].values.push(neat.getAverage())
+  chartData.datasets[2].values.push(neat.population[neat.popsize - 1].score)
+
+  if (chartData.labels.length > 35) {
+    chartData.labels.shift()
+    chartData.datasets.forEach((d) => d.values.shift())
+  }
+
+  chart.update(chartData)
 }
 
 function checkGeneration() {
@@ -196,3 +212,5 @@ function checkGeneration() {
 initLevel();
 
 setInterval(draw, 10);
+
+
