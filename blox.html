@@ -34,6 +34,11 @@
     </div>
 
     <canvas id="myCanvas" width="400" height="400"></canvas>
+    <div style="text-align:center">
+        <input type="range" id="time-limit-slider" name="Time Limit" min="500" max="2000">
+        <label for="time-limit-slider">Time Limit:</label>
+        <input type="text" id="time-limit">
+    </div>
     <div id="chart"></div>
 
     <script src="js/neataptic.js"></script>
@@ -42,9 +47,7 @@
     <script src="node_modules/frappe-charts/dist/frappe-charts.min.iife.js"></script>
     <script src="js/chart.js"></script>
     <script type="module" src="js.js">
-
     </script>
-
 </body>
 
 </html>

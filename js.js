@@ -31,7 +31,7 @@ let players = [];
 let roundsPlayed = 0;
 const START_DIST = 1000;
 const NOT_MOVED_LIMIT = 10;
-const TIME_MAX_LIMIT = 1000;
+let TIME_MAX_LIMIT = 1000;
 
 const playerImg = new Image();
 playerImg.onload = function () {
@@ -52,6 +52,12 @@ const exitImg = new Image();
 exitImg.src = 'assets/exit.png';
 
 let leeMatrix = [];
+
+document.getElementById("time-limit").value = TIME_MAX_LIMIT;
+document.getElementById('time-limit-slider').addEventListener('input', (slider) => {
+  TIME_MAX_LIMIT = slider.target.value;
+  document.getElementById("time-limit").value = TIME_MAX_LIMIT;
+});
 
 function initLevel() {
   level = [];
